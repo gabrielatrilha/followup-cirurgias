@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Follow-up de Oportunidades — Magnum Import</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --azul:#1f3864; --azul2:#2b4a7e; --verde:#2e7d46; --verde-claro:#e2efda;
+    --amarelo:#fff2cc; --cinza:#f4f6f9; --linha:#e3e8ef; --txt:#1c2733; --mut:#5a6b7b;
+    --novo:#d6f0d8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--txt);background:var(--cinza)}
+  button{font-family:inherit;cursor:pointer}
+  /* ---------- LOGIN ---------- */
+  #login{position:fixed;inset:0;background:linear-gradient(135deg,#1f3864,#0f1e38);display:flex;align-items:center;justify-content:center;z-index:50}
+  .card{background:#fff;border-radius:16px;padding:34px 32px;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .card h1{margin:0 0 4px;font-size:20px;color:var(--azul)}
+  .card p{margin:0 0 20px;color:var(--mut);font-size:13px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--mut);margin:14px 0 6px}
+  select,input,textarea{width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:9px;font-size:14px;font-family:inherit;background:#fff}
+  .btn{background:var(--azul);color:#fff;border:none;padding:12px 16px;border-radius:9px;font-weight:600;font-size:14px;width:100%;margin-top:20px}
+  .btn:hover{background:var(--azul2)}
+  .btn.sec{background:#fff;color:var(--azul);border:1px solid var(--azul);width:auto;margin:0}
+  .btn.sec:hover{background:#eef2f9}
+  .btn.green{background:var(--verde)}
+  .btn.small{padding:8px 12px;font-size:13px;width:auto;margin:0}
+  .hint{font-size:11px;color:var(--mut);margin-top:8px}
+  .err{color:#c0392b;font-size:12px;margin-top:8px;min-height:14px}
+  /* ---------- APP ---------- */
+  #app{display:none}
+  header.top{background:var(--azul);color:#fff;padding:0 20px;display:flex;align-items:center;gap:18px;height:56px}
+  header .brand{font-weight:700;font-size:16px;letter-spacing:.3px}
+  header .who{margin-left:auto;font-size:13px;opacity:.9}
+  header .who b{opacity:1}
+  .tabs{background:#fff;border-bottom:1px solid var(--linha);padding:0 16px;display:flex;gap:4px}
+  .tab{padding:14px 18px;border:none;background:none;font-size:14px;font-weight:600;color:var(--mut);border-bottom:3px solid transparent}
+  .tab.active{color:var(--azul);border-bottom-color:var(--azul)}
+  .wrap{padding:20px;max-width:1400px;margin:0 auto}
+  .panel{display:none}
+  .panel.active{display:block}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .toolbar .grow{flex:1}
+  .search{max-width:280px}
+  .filtsel{max-width:230px}
+  .stat-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+  .stat{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:12px 16px;min-width:120px}
+  .stat .n{font-size:22px;font-weight:700;color:var(--azul)}
+  .stat .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
+  .tablebox{background:#fff;border:1px solid var(--linha);border-radius:12px;overflow:auto;max-height:70vh}
+  table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
+  thead th{position:sticky;top:0;background:var(--azul);color:#fff;padding:10px 10px;text-align:left;font-weight:600;z-index:2}
+  thead th.ret{background:var(--verde)}
+  tbody td{padding:7px 10px;border-bottom:1px solid var(--linha);vertical-align:top}
+  tbody tr:hover{background:#f7faff}
+  tr.novo td:first-child{box-shadow:inset 3px 0 0 var(--verde)}
+  tr.novo{background:var(--novo)}
+  td.ref{color:var(--txt)}
+  td.money{font-variant-numeric:tabular-nums;text-align:right}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .cell-in{border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:12px;width:100%;background:var(--amarelo)}
+  textarea.cell-in{min-width:220px;resize:vertical;min-height:30px}
+  select.cell-in{min-width:150px}
+  input.cell-in.date{min-width:120px}
+  .empty{padding:60px 20px;text-align:center;color:var(--mut)}
+  .empty svg{opacity:.4}
+  .drop{border:2px dashed var(--azul);border-radius:14px;padding:36px;text-align:center;color:var(--mut);background:#fff}
+  .drop.over{background:#eef4ff}
+  .tag{font-size:11px;padding:2px 8px;border-radius:6px;background:#eef2f9;color:var(--azul);font-weight:600}
+  .note{background:#fff8e1;border:1px solid #ffe08a;color:#7a5c00;padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:14px}
+  .right{margin-left:auto}
+  a.link{color:var(--azul);font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <div class="card">
+    <h1>Follow-up de Oportunidades</h1>
+    <p>Magnum Import — acompanhamento de cirurgias</p>
+    <label>Quem é você?</label>
+    <select id="loginUser"></select>
+    <div id="pwBox" style="display:none">
+      <label>Senha (acesso interno)</label>
+      <input type="password" id="loginPw" placeholder="senha do time interno">
+    </div>
+    <button class="btn" id="loginBtn">Entrar</button>
+    <div class="err" id="loginErr"></div>
+    <div class="hint">Interno vê as oportunidades de todos. Cada vendedor vê somente as suas.</div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header class="top">
+    <span class="brand">🩺 Magnum · Follow-up</span>
+    <nav class="tabs" style="border:none;background:none;padding:0">
+      <button class="tab active" data-tab="oport">Oportunidades</button>
+      <button class="tab" data-tab="retornos">Retornos</button>
+      <button class="tab" data-tab="consolidado" id="tabConsol">Consolidado</button>
+    </nav>
+    <span class="who">Conectado: <b id="whoName">—</b> <button class="btn sec small" id="logout" style="margin-left:10px">Sair</button></span>
+  </header>
+
+  <div class="wrap">
+    <!-- ---- OPORTUNIDADES ---- -->
+    <section class="panel active" id="panel-oport">
+      <div id="internoUpload">
+        <div class="note">👋 <b>Área interna.</b> Anexe aqui a planilha exportada do seu sistema (mesmas colunas do arquivo <span class="tag">cirurgia_aprovada</span>). Ela alimenta o sistema todo. Os vendedores já quem responder veem só o que é deles.</div>
+        <div class="drop" id="drop">
+          <div style="font-size:15px;margin-bottom:8px">📎 Arraste a planilha aqui ou</div>
+          <button class="btn sec small" id="pick">Escolher arquivo (.xlsx)</button>
+          <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+          <div class="hint" style="margin-top:12px">Ou <button class="btn sec small" id="demo">carregar dados de exemplo</button> para testar.</div>
+        </div>
+      </div>
+      <div id="oportView" style="display:none">
+        <div class="stat-row" id="statsOport"></div>
+        <div class="toolbar">
+          <input class="search" id="searchOport" placeholder="🔍 Buscar paciente, médico, hospital...">
+          <select class="filtsel" id="filtVendOport"></select>
+          <div class="grow"></div>
+          <span class="tag" id="updatedTag"></span>
+          <button class="btn sec small" id="reupload">Trocar planilha</button>
+        </div>
+        <div class="tablebox"><table id="tblOport"></table></div>
+      </div>
+    </section>
+
+    <!-- ---- RETORNOS ---- -->
+    <section class="panel" id="panel-retornos">
+      <div id="retEmpty" class="empty">Nenhuma oportunidade carregada ainda.</div>
+      <div id="retView" style="display:none">
+        <div class="note" id="retNote"></div>
+        <div class="stat-row" id="statsRet"></div>
+        <div class="toolbar">
+          <input class="search" id="searchRet" placeholder="🔍 Buscar...">
+          <select class="filtsel" id="filtStatusRet"></select>
+          <select class="filtsel" id="filtVendRet" style="display:none"></select>
+          <div class="grow"></div>
+          <button class="btn green small" id="exportMeus">⬇ Exportar meus retornos</button>
+        </div>
+        <div class="tablebox"><table id="tblRet"></table></div>
+      </div>
+    </section>
+
+    <!-- ---- CONSOLIDADO (só interno) ---- -->
+    <section class="panel" id="panel-consolidado">
+      <div class="note">Visão consolidada de todos os vendedores. Importe aqui os arquivos que os vendedores devolverem para juntar tudo, ou baixe o consolidado para reimportar no seu sistema.</div>
+      <div class="toolbar">
+        <button class="btn sec small" id="importRet">📥 Importar retorno de vendedor</button>
+        <input type="file" id="fileRet" accept=".xlsx,.xls" multiple style="display:none">
+        <button class="btn green small" id="exportConsol">⬇ Baixar consolidado (.xlsx)</button>
+      </div>
+      <div class="tablebox"><table id="tblConsol"></table></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG
+   ========================================================================= */
+const SENHA_INTERNO = "magnum"; // troque no arquivo antes de publicar
+const VENDEDORES = {
+  // nome EXATO na coluna Vendedor  ->  rótulo curto
+  "FERNANDO CESAR VEGA":"Fernando",
+  "RAFAEL FREITAS DA SILVA":"Rafael",
+  "KAMILA CASTILHO":"Kamila",
+  "MARCOS ROGÉRIO VERDURA":"Marcos Verdura",
+  "NADJANE":"Nadjane",
+  "EVANDRO":"Evandro",
+  "RODOLPHO FALCIANO FILHO":"Rodolpho",
+  "MARCOS FERNANDO ANTUNES SCHMITT":"Marcão",
+  "MIGUEL GROISMAN":"Miguel",
+};
+const STATUS = ["Não iniciado","Em negociação","Aguardando agendamento","Aguardando convênio","Cirurgia marcada","Concluída / Faturada","Sem contato","Perdido"];
+const STATUS_COR = {"Não iniciado":"#fce4d6","Em negociação":"#fff2cc","Aguardando agendamento":"#ddebf7","Aguardando convênio":"#ddebf7","Cirurgia marcada":"#c6e0b4","Concluída / Faturada":"#a9d08e","Sem contato":"#eeeeee","Perdido":"#f8cbad"};
+const MOTIVOS = ["","Preço","Concorrente","Paciente desistiu","Convênio negou","Médico mudou conduta","Sem previsão","Outro"];
+
+/* =========================================================================
+   ESTADO (persiste no navegador quando possível)
+   ========================================================================= */
+const store = {
+  read(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} },
+  write(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+};
+let DATA = store.read("fu_oportunidades", null);   // {atualizadoEm, opp:[...]}
+let RET  = store.read("fu_retornos", {});          // { id: {status,previsao,obs,motivo} }
+let USER = null;                                    // {tipo:'interno'|'vendedor', nome, label}
+
+/* =========================================================================
+   UTIL
+   ========================================================================= */
+const $ = s=>document.querySelector(s);
+const fmtMoney = v => (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function fmtDate(v){
+  if(!v) return "";
+  if(v instanceof Date) return v.toLocaleDateString("pt-BR");
+  if(typeof v==="number"){ // serial excel
+    const d=new Date(Math.round((v-25569)*86400*1000)); return d.toLocaleDateString("pt-BR");
+  }
+  return String(v);
+}
+function labelVend(nome){ return VENDEDORES[nome] || nome; }
+
+/* =========================================================================
+   PARSE + AGREGA (1 linha por Id Cirurgia por vendedor)
+   ========================================================================= */
+function agregar(rows){
+  const H = {};
+  // aceita nomes de coluna com/sem acento aproximado
+  const first = rows[0]||{};
+  Object.keys(first).forEach(k=>H[k.trim().toLowerCase()]=k);
+  const get=(row,cands)=>{ for(const c of cands){ const key=H[c]; if(key!==undefined) return row[key]; } return undefined; };
+  const grp = {};
+  rows.forEach(row=>{
+    const vend = get(row,["vendedor"]);
+    if(!vend) return;
+    const nome = String(vend).trim();
+    if(!(nome in VENDEDORES)) return;              // só os 9
+    const id = get(row,["id cirurgia","id_cirurgia","id"]);
+    const key = nome+"||"+id;
+    if(!grp[key]) grp[key]={id, vendedor:nome, paciente:"",data:null,medico:"",convenio:"",hospital:"",tipo:new Set(),produtos:[],valor:0};
+    const g=grp[key];
+    g.paciente = g.paciente || get(row,["paciente"]) || "";
+    const d = get(row,["data cirurgia","data_cirurgia"]); if(!g.data && d) g.data=d;
+    g.medico = g.medico || get(row,["medico","médico"]) || "";
+    g.convenio = g.convenio || get(row,["convenio","convênio"]) || "";
+    g.hospital = g.hospital || get(row,["hospital"]) || "";
+    const t=get(row,["tipo cirurgia","tipo_cirurgia"]); if(t) g.tipo.add(String(t).trim());
+    const p=get(row,["produto"]); if(p) g.produtos.push(String(p).trim());
+    const s=get(row,["subtotal"]); if(typeof s==="number") g.valor+=s; else if(s&&!isNaN(parseFloat(s))) g.valor+=parseFloat(s);
+  });
+  const opp = Object.values(grp).map(g=>{
+    const prod=[...new Set(g.produtos)];
+    return {id:g.id,vendedor:g.vendedor,paciente:g.paciente,data:g.data,medico:g.medico,
+      convenio:g.convenio,hospital:g.hospital,tipo:[...g.tipo].sort().join(" / "),
+      produtos:prod.join("; "),qtd:g.produtos.length,valor:Math.round(g.valor*100)/100};
+  });
+  opp.sort((a,b)=> (a.data?1:0)-(b.data?1:0) || b.valor-a.valor );
+  return opp;
+}
+
+function carregarWorkbook(arrbuf, marcarNovos){
+  const wb = XLSX.read(arrbuf,{type:"array",cellDates:true});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws,{defval:null});
+  const nova = agregar(rows);
+  // marca oportunidades novas em relação às atuais
+  const idsAntigos = new Set((DATA?.opp||[]).map(o=>String(o.vendedor)+"|"+o.id));
+  nova.forEach(o=> o.novo = marcarNovos ? !idsAntigos.has(String(o.vendedor)+"|"+o.id) : false );
+  DATA = {atualizadoEm:new Date().toISOString(), opp:nova};
+  store.write("fu_oportunidades", DATA);
+  render();
+}
+
+/* =========================================================================
+   LOGIN
+   ========================================================================= */
+function initLogin(){
+  const sel=$("#loginUser");
+  sel.innerHTML = '<option value="__interno">Time interno (Gabriela) — vê todos</option>' +
+    Object.entries(VENDEDORES).map(([nome,lab])=>`<option value="${nome}">${lab} (vendedor)</option>`).join("");
+  sel.onchange=()=>{ $("#pwBox").style.display = sel.value==="__interno"?"block":"none"; $("#loginErr").textContent=""; };
+  sel.onchange();
+  $("#loginBtn").onclick=()=>{
+    const v=sel.value;
+    if(v==="__interno"){
+      if($("#loginPw").value!==SENHA_INTERNO){ $("#loginErr").textContent="Senha incorreta."; return; }
+      USER={tipo:"interno",nome:"__interno",label:"Gabriela (interno)"};
+    }else{
+      USER={tipo:"vendedor",nome:v,label:labelVend(v)};
+    }
+    $("#login").style.display="none";
+    $("#app").style.display="block";
+    $("#whoName").textContent=USER.label;
+    $("#tabConsol").style.display = USER.tipo==="interno"?"block":"none";
+    $("#internoUpload").style.display = USER.tipo==="interno"?"block":"none";
+    $("#filtVendOport").style.display = USER.tipo==="interno"?"":"none";
+    render();
+  };
+}
+$("#logout").onclick=()=>{ USER=null; location.reload(); };
+
+/* =========================================================================
+   TABS
+   ========================================================================= */
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  $("#panel-"+t.dataset.tab).classList.add("active");
+});
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function oppsVisiveis(){
+  if(!DATA) return [];
+  if(USER.tipo==="vendedor") return DATA.opp.filter(o=>o.vendedor===USER.nome);
+  return DATA.opp;
+}
+
+function render(){
+  if(!USER) return;
+  renderOport();
+  renderRetornos();
+  if(USER.tipo==="interno") renderConsolidado();
+}
+
+function renderOport(){
+  const has = !!DATA;
+  $("#oportView").style.display = has?"block":"none";
+  if(USER.tipo==="interno") $("#internoUpload").style.display = has?"none":"block";
+  else $("#internoUpload").style.display="none";
+  if(!has){
+    if(USER.tipo==="vendedor") $("#panel-oport").querySelector("#internoUpload")?.remove?.();
+    return;
+  }
+  const opp = oppsVisiveis();
+  // stats
+  const totalVal = opp.reduce((s,o)=>s+o.valor,0);
+  const semData = opp.filter(o=>!o.data).length;
+  $("#statsOport").innerHTML = stat(opp.length,"Oportunidades")+stat(semData,"Sem data agendada")+stat(fmtMoney(totalVal),"Valor total");
+  $("#updatedTag").textContent = "Atualizado: "+fmtDate(new Date(DATA.atualizadoEm));
+  // filtro vendedor (interno)
+  if(USER.tipo==="interno"){
+    const fv=$("#filtVendOport");
+    if(!fv.dataset.built){ fv.innerHTML='<option value="">Todos os vendedores</option>'+Object.entries(VENDEDORES).map(([n,l])=>`<option value="${n}">${l}</option>`).join(""); fv.dataset.built=1; fv.onchange=renderOport; }
+  }
+  const busca=($("#searchOport").value||"").toLowerCase();
+  const fvend=USER.tipo==="interno"?$("#filtVendOport").value:"";
+  const cols=["Vendedor","Id","Paciente","Data Cirurgia","Médico","Convênio","Hospital","Tipo","Produtos","Qtd","Valor (R$)"];
+  let html="<thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>";
+  const rows=opp.filter(o=>(!fvend||o.vendedor===fvend) && (!busca || (o.paciente+o.medico+o.hospital+o.produtos).toLowerCase().includes(busca)));
+  rows.forEach(o=>{
+    html+=`<tr class="${o.novo?'novo':''}"><td class="ref">${labelVend(o.vendedor)}</td><td class="ref"><b>${o.id??""}</b></td>`+
+      `<td class="ref">${o.paciente||""}</td><td class="ref">${fmtDate(o.data)}</td><td class="ref">${o.medico||""}</td>`+
+      `<td class="ref">${o.convenio||""}</td><td class="ref">${o.hospital||""}</td><td class="ref">${o.tipo||""}</td>`+
+      `<td class="ref">${o.produtos||""}</td><td class="ref" style="text-align:center">${o.qtd}</td><td class="money">${fmtMoney(o.valor)}</td></tr>`;
+  });
+  if(!rows.length) html+=`<tr><td colspan="11" class="empty">Nada encontrado.</td></tr>`;
+  html+="</tbody>";
+  $("#tblOport").innerHTML=html;
+}
+
+function retornoDe(id){ return RET[id] || {status:"Não iniciado",previsao:"",obs:"",motivo:""}; }
+
+function renderRetornos(){
+  const opp=oppsVisiveis();
+  $("#retView").style.display = opp.length?"block":"none";
+  $("#retEmpty").style.display = opp.length?"none":"block";
+  if(!opp.length) return;
+  // nota + filtro status
+  $("#retNote").innerHTML = USER.tipo==="vendedor"
+    ? `Olá <b>${USER.label}</b> — aqui estão <b>suas</b> oportunidades. Preencha Status, Previsão, Observação e Motivo (se perdido). O que você já respondeu fica salvo. Ao terminar, clique em <b>Exportar meus retornos</b> e me envie o arquivo.`
+    : `Você está vendo os retornos de <b>todos</b>. Pode editar direto aqui também.`;
+  const fs=$("#filtStatusRet");
+  if(!fs.dataset.built){ fs.innerHTML='<option value="">Todos os status</option>'+STATUS.map(s=>`<option>${s}</option>`).join(""); fs.dataset.built=1; fs.onchange=renderRetornos; }
+  // stats por status
+  const cont={}; STATUS.forEach(s=>cont[s]=0);
+  opp.forEach(o=>{ const st=retornoDe(o.id).status||"Não iniciado"; cont[st]=(cont[st]||0)+1; });
+  const respond = opp.length - (cont["Não iniciado"]||0);
+  $("#statsRet").innerHTML = stat(opp.length,"Total")+stat(respond,"Respondidas")+stat((cont["Perdido"]||0),"Perdidas")+stat((cont["Cirurgia marcada"]||0)+(cont["Concluída / Faturada"]||0),"Ganhas/marcadas");
+  // vendedor filter for interno
+  const fvBox=$("#filtVendRet");
+  if(USER.tipo==="interno"){ fvBox.style.display="";
+    if(!fvBox.dataset.built){ fvBox.innerHTML='<option value="">Todos os vendedores</option>'+Object.entries(VENDEDORES).map(([n,l])=>`<option value="${n}">${l}</option>`).join(""); fvBox.dataset.built=1; fvBox.onchange=renderRetornos; }
+  } else fvBox.style.display="none";
+
+  const busca=($("#searchRet").value||"").toLowerCase();
+  const fstat=fs.value; const fvend=USER.tipo==="interno"?fvBox.value:"";
+  const head=["Id","Paciente","Convênio","Hospital","Valor"].concat(USER.tipo==="interno"?["Vendedor"]:[]);
+  let html="<thead><tr>"+head.map(c=>`<th>${c}</th>`).join("")+
+    ['Status','Previsão','Observação','Motivo (se perdido)'].map(c=>`<th class="ret">${c}</th>`).join("")+"</tr></thead><tbody>";
+  const rows=opp.filter(o=>{
+    const r=retornoDe(o.id);
+    if(fstat && (r.status||"Não iniciado")!==fstat) return false;
+    if(fvend && o.vendedor!==fvend) return false;
+    if(busca && !(o.paciente+o.medico+o.hospital+o.produtos).toLowerCase().includes(busca)) return false;
+    return true;
+  });
+  rows.forEach(o=>{
+    const r=retornoDe(o.id);
+    html+=`<tr class="${o.novo?'novo':''}"><td class="ref"><b>${o.id??""}</b></td><td class="ref">${o.paciente||""}</td>`+
+      `<td class="ref">${o.convenio||""}</td><td class="ref">${o.hospital||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
+      (USER.tipo==="interno"?`<td class="ref">${labelVend(o.vendedor)}</td>`:"")+
+      `<td><select class="cell-in" data-id="${o.id}" data-f="status" style="background:${STATUS_COR[r.status]||'#fff2cc'}">`+
+        STATUS.map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")+`</select></td>`+
+      `<td><input class="cell-in date" type="date" data-id="${o.id}" data-f="previsao" value="${r.previsao||""}"></td>`+
+      `<td><textarea class="cell-in" data-id="${o.id}" data-f="obs" rows="1">${r.obs||""}</textarea></td>`+
+      `<td><select class="cell-in" data-id="${o.id}" data-f="motivo">`+MOTIVOS.map(m=>`<option ${m===r.motivo?"selected":""}>${m}</option>`).join("")+`</select></td></tr>`;
+  });
+  if(!rows.length) html+=`<tr><td colspan="9" class="empty">Nada encontrado.</td></tr>`;
+  html+="</tbody>";
+  $("#tblRet").innerHTML=html;
+  // liga edição
+  $("#tblRet").querySelectorAll(".cell-in").forEach(el=>{
+    const ev = el.tagName==="TEXTAREA"?"input":"change";
+    el.addEventListener(ev,()=>{
+      const id=el.dataset.id, f=el.dataset.f;
+      if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:""};
+      RET[id][f]=el.value;
+      store.write("fu_retornos",RET);
+      if(f==="status"){ el.style.background=STATUS_COR[el.value]||"#fff2cc"; renderRetornos(); if(USER.tipo==="interno") renderConsolidado(); }
+    });
+  });
+}
+
+function renderConsolidado(){
+  if(!DATA){ $("#tblConsol").innerHTML=""; return; }
+  const head=["Vendedor","Id","Paciente","Convênio","Hospital","Valor","Status","Previsão","Observação","Motivo"];
+  let html="<thead><tr>"+head.map((c,i)=>`<th class="${i>=6?'ret':''}">${c}</th>`).join("")+"</tr></thead><tbody>";
+  DATA.opp.forEach(o=>{ const r=retornoDe(o.id);
+    html+=`<tr><td>${labelVend(o.vendedor)}</td><td><b>${o.id??""}</b></td><td>${o.paciente||""}</td><td>${o.convenio||""}</td><td>${o.hospital||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
+      `<td><span class="badge" style="background:${STATUS_COR[r.status]||'#eee'}">${r.status||"Não iniciado"}</span></td><td>${r.previsao?fmtDate(r.previsao):""}</td><td>${r.obs||""}</td><td>${r.motivo||""}</td></tr>`;
+  });
+  html+="</tbody>";
+  $("#tblConsol").innerHTML=html;
+}
+
+function stat(n,l){ return `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`; }
+
+/* =========================================================================
+   EXPORT / IMPORT
+   ========================================================================= */
+function exportarRetornos(opp, nomeArq){
+  const aoa=[["Id Cirurgia","Paciente","Convênio","Hospital","Valor Total","Vendedor","Status","Previsão","Observação","Motivo (se perdido)"]];
+  opp.forEach(o=>{ const r=retornoDe(o.id);
+    aoa.push([o.id,o.paciente,o.convenio,o.hospital,o.valor,labelVend(o.vendedor),r.status,r.previsao,r.obs,r.motivo]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Retornos");
+  XLSX.writeFile(wb,nomeArq);
+}
+$("#exportMeus").onclick=()=>{
+  const opp=oppsVisiveis();
+  exportarRetornos(opp, `Retornos_${USER.tipo==="vendedor"?USER.label:"todos"}.xlsx`);
+};
+$("#exportConsol").onclick=()=>{ exportarRetornos(DATA.opp,"MASTER_CONSOLIDADO.xlsx"); };
+$("#importRet").onclick=()=>$("#fileRet").click();
+$("#fileRet").onchange=e=>{
+  [...e.target.files].forEach(f=>{ const rd=new FileReader();
+    rd.onload=ev=>{ const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+      rows.forEach(row=>{ const id=row["Id Cirurgia"]??row["Id"]??row["id"]; if(id===undefined||id==="")return;
+        RET[id]={status:row["Status"]||"Não iniciado",previsao:row["Previsão"]||row["Previsao"]||"",obs:row["Observação"]||row["Observacao"]||"",motivo:row["Motivo (se perdido)"]||row["Motivo"]||""};
+      });
+      store.write("fu_retornos",RET); render();
+    }; rd.readAsArrayBuffer(f);
+  });
+  e.target.value="";
+};
+
+/* uploads da aba Oportunidades */
+$("#pick").onclick=()=>$("#file").click();
+$("#reupload").onclick=()=>{ $("#oportView").style.display="none"; $("#internoUpload").style.display="block"; };
+$("#file").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=ev=>carregarWorkbook(ev.target.result,true); rd.readAsArrayBuffer(f); e.target.value=""; };
+const drop=$("#drop");
+["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f){const rd=new FileReader();rd.onload=ev=>carregarWorkbook(ev.target.result,true);rd.readAsArrayBuffer(f);} });
+$("#demo").onclick=()=>{ DATA={atualizadoEm:new Date().toISOString(),opp:DEMO()}; store.write("fu_oportunidades",DATA); render(); };
+$("#searchOport").oninput=renderOport;
+$("#searchRet").oninput=renderRetornos;
+
+/* =========================================================================
+   DADOS DE EXEMPLO (fictícios) — para testar sem subir dados reais
+   ========================================================================= */
+function DEMO(){
+  const base=[
+    ["MIGUEL GROISMAN","Cliente A","UNIMED",18000,null,"HOSP. CENTRAL","Dr. Souza","UROLIFT","UROLIFT SYSTEM",1],
+    ["MIGUEL GROISMAN","Cliente B","SULAMERICA",24000,"2026-08-12","HOSP. SÃO LUIZ","Dr. Souza","VORTEK","CATETER DUPLO J",2],
+    ["FERNANDO CESAR VEGA","Cliente C","PARTICULAR",20000,null,"HOSP. MORIAH","Dr. Lima","UROLIFT","UROLIFT SYSTEM",1],
+    ["FERNANDO CESAR VEGA","Cliente D","BRADESCO",15000,"2026-07-30","HOSP. ALBERT","Dr. Reis","VORTEK","STENT 8.0FR",1],
+    ["RAFAEL FREITAS DA SILVA","Cliente E","TEMPOMED",14000,null,"SOS CARDIO","Dr. Paz","VORTEK","CATETER DUPLO J",1],
+    ["KAMILA CASTILHO","Cliente F","UNIMED",26000,null,"HOSP. BLANC","Dra. Nunes","UROLIFT","UROLIFT SYSTEM",2],
+    ["MARCOS ROGÉRIO VERDURA","Cliente G","PARTICULAR",20000,null,"HOSP. SOS","Dr. Sato","UROLIFT","UROLIFT SYSTEM",1],
+    ["NADJANE","Cliente H","SULAMERICA",22000,"2026-08-05","HOSP. OSWALDO","Dr. Franco","UROLIFT","UROLIFT SYSTEM",1],
+    ["EVANDRO","Cliente I","UNIMED",17000,null,"HOSP. CHAPECÓ","Dr. Val","VORTEK","STENT",1],
+    ["RODOLPHO FALCIANO FILHO","Cliente J","UNIMED SEGUROS",24000,null,"HOSP. ITAIM","Dr. Barbosa","UROLIFT","UROLIFT SYSTEM",1],
+    ["MARCOS FERNANDO ANTUNES SCHMITT","Cliente K","PARTICULAR",19000,null,"HOSP. SÃO LUIZ","Dr. Antunes","VORTEK","CATETER",1],
+  ];
+  return base.map((b,i)=>({id:100+i,vendedor:b[0],paciente:b[1],data:b[4],medico:b[6],convenio:b[2],hospital:b[5],tipo:b[7],produtos:b[8],qtd:b[9],valor:b[3],novo:i%3===0}));
+}
+
+/* start */
+initLogin();
+</script>
+</body>
+</html>
