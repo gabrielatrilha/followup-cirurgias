@@ -298,7 +298,7 @@ function ligarSortHeaders(tblSel, estado, renderFn){
 }
 const rr=id=>retornoDe(id);
 const ACC_OPORT={vendedor:o=>labelVend(o.vendedor),id:o=>+o.id||0,paciente:o=>o.paciente,data:o=>o.data?new Date(o.data).getTime():0,medico:o=>o.medico,convenio:o=>o.convenio,hospital:o=>o.hospital,tipo:o=>o.tipo,produtos:o=>o.produtos,qtd:o=>+o.qtd||0,valor:o=>o.valor};
-const ACC_RET={situacao:o=>prioRet(rr(o.id)),id:o=>+o.id||0,paciente:o=>o.paciente,convenio:o=>o.convenio,hospital:o=>o.hospital,valor:o=>o.valor,vendedor:o=>labelVend(o.vendedor),status:o=>rr(o.id).status,motivo:o=>rr(o.id).motivo,atualizado:o=>{const a=rr(o.id).atualizadoEm;return a?new Date(a).getTime():0;},obs:o=>rr(o.id).obs};
+const ACC_RET={situacao:o=>prioRet(rr(o.id)),id:o=>+o.id||0,paciente:o=>o.paciente,medico:o=>o.medico,tipo:o=>o.tipo,convenio:o=>o.convenio,hospital:o=>o.hospital,valor:o=>o.valor,vendedor:o=>labelVend(o.vendedor),status:o=>rr(o.id).status,motivo:o=>rr(o.id).motivo,atualizado:o=>{const a=rr(o.id).atualizadoEm;return a?new Date(a).getTime():0;},obs:o=>rr(o.id).obs};
 const ACC_CONS={situacao:o=>prioMagnum(rr(o.id)),vendedor:o=>labelVend(o.vendedor),id:o=>+o.id||0,paciente:o=>o.paciente,convenio:o=>o.convenio,valor:o=>o.valor,status:o=>rr(o.id).status,atualizado:o=>{const a=rr(o.id).atualizadoEm;return a?new Date(a).getTime():0;},sistema:o=>rr(o.id).sistemaOk,alimentado:o=>{const a=rr(o.id).sistemaEm;return a?new Date(a).getTime():0;},obs:o=>rr(o.id).obs};
 
 /* =========================================================================
@@ -505,7 +505,7 @@ function renderRetornos(){
 
   const busca=($("#searchRet").value||"").toLowerCase();
   const fstat=fs.value; const fvend=USER.tipo==="interno"?fvBox.value:"";
-  const baseCols=[["Situação","situacao"],["Id","id"],["Paciente","paciente"],["Convênio","convenio"],["Hospital","hospital"],["Valor","valor"]];
+  const baseCols=[["Situação","situacao"],["Id","id"],["Paciente","paciente"],["Médico","medico"],["Tipo","tipo"],["Convênio","convenio"],["Hospital","hospital"],["Valor","valor"]];
   if(USER.tipo==="interno") baseCols.push(["Vendedor","vendedor"]);
   const retCols=[["Status","status"],["Motivo (se perdido)","motivo"],["Última atualização","atualizado"],["Observação","obs"]];
   let html="<thead><tr>"+baseCols.map(([c,k])=>`<th data-col="${k}">${c}${setaSort(sortRet,k)}</th>`).join("")+
@@ -537,6 +537,7 @@ function renderRetornos(){
                : vencido(r) ? `<span class="pill red">Vencido ${dd}d</span>`
                : '<span class="pill green">Em dia</span>';
     html+=`<tr class="${cls}"><td>${pill}</td><td class="ref"><b>${o.id??""}</b></td><td class="ref">${o.paciente||""}</td>`+
+      `<td class="ref">${o.medico||""}</td><td class="ref">${o.tipo||""}</td>`+
       `<td class="ref">${o.convenio||""}</td><td class="ref">${o.hospital||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
       (USER.tipo==="interno"?`<td class="ref">${labelVend(o.vendedor)}</td>`:"")+
       `<td><select class="cell-in" data-id="${o.id}" data-f="status" style="background:${STATUS_COR[r.status]||'#fff2cc'}">`+
@@ -545,7 +546,7 @@ function renderRetornos(){
       `<td class="ref" data-upd="${o.id}">${r.atualizadoEm?fmtDate(r.atualizadoEm):"—"}</td>`+
       `<td><textarea class="cell-in" data-id="${o.id}" data-f="obs" rows="1">${r.obs||""}</textarea></td></tr>`;
   });
-  if(!rows.length) html+=`<tr><td colspan="11" class="empty">Nada encontrado.</td></tr>`;
+  if(!rows.length) html+=`<tr><td colspan="13" class="empty">Nada encontrado.</td></tr>`;
   html+="</tbody>";
   $("#tblRet").innerHTML=html;
   ligarSortHeaders('#tblRet', sortRet, renderRetornos);
