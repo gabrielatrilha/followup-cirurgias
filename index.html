@@ -125,7 +125,7 @@
     <span class="who"><b id="whoName">—</b> <button class="btn sec small" id="logout">Sair</button></span>
   </header>
   <nav class="tabs">
-    <button class="tab active" data-tab="oport">Oportunidades</button>
+    <button class="tab active" data-tab="oport" id="tabOport">Oportunidades</button>
     <button class="tab" data-tab="retornos">Retornos</button>
     <button class="tab" data-tab="consolidado" id="tabConsol">Magnum · Banco de dados</button>
   </nav>
@@ -389,6 +389,7 @@ function initLogin(){
     $("#app").style.display="block";
     $("#whoName").textContent=USER.label;
     $("#tabConsol").style.display = USER.tipo==="interno"?"block":"none";
+    $("#tabOport").style.display = USER.tipo==="interno"?"block":"none";   // vendedor vê só Retornos
     $("#internoUpload").style.display = USER.tipo==="interno"?"block":"none";
     $("#filtVendOport").style.display = USER.tipo==="interno"?"":"none";
     render();
