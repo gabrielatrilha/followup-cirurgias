@@ -256,7 +256,7 @@ function vencido(r){ const dd=diasDesde(r&&r.atualizadoEm); return respondido(r)
 // prioridade do vendedor: 0=a preencher (topo), 1=vencido>60d (topo, vermelho), 2=respondido em dia (abaixo)
 function prioRet(r){ if(!respondido(r)) return 0; if(vencido(r)) return 1; return 2; }
 // Magnum/banco: já alimentado no sistema e sem retorno mais novo pendente e não vencido
-function alimentado(r){ return r && r.sistemaOk==="Sim" && r.sistemaEm && (!r.atualizadoEm || new Date(r.atualizadoEm) <= new Date(r.sistemaEm)); }
+function alimentado(r){ return !!(r && r.sistemaOk==="Sim" && !vencido(r)); }
 function precisaAlimentar(r){ return respondido(r) && (!alimentado(r) || vencido(r)); }
 // prioridade Magnum: 0=falta alimentar / venceu 60d (topo), 1=aguardando vendedor, 2=alimentado em dia (abaixo)
 function prioMagnum(r){ if(precisaAlimentar(r)) return 0; if(!respondido(r)) return 1; return 2; }
@@ -540,9 +540,12 @@ function renderRetornos(){
       if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""};
       RET[id][f]=el.value;
       RET[id].atualizadoEm=hojeISO();                 // registra a data da última atualização do retorno
+      // qualquer atualização do vendedor volta a exigir alimentação no sistema de gestão
+      RET[id].sistemaOk="Não"; RET[id].sistemaEm="";
       const cel=$("#tblRet").querySelector(`[data-upd="${id}"]`); if(cel) cel.textContent=fmtDate(RET[id].atualizadoEm);
       store.write("fu_retornos",RET);
-      if(f==="status"){ el.style.background=STATUS_COR[el.value]||"#fff2cc"; renderRetornos(); if(USER.tipo==="interno") renderConsolidado(); }
+      if(f==="status"){ el.style.background=STATUS_COR[el.value]||"#fff2cc"; renderRetornos(); }
+      if(el.tagName!=="TEXTAREA" && USER.tipo==="interno") renderConsolidado();
     });
   });
 }
@@ -630,14 +633,16 @@ $("#fileRet").onchange=e=>{
       rows.forEach(row=>{ const id=row["Id Cirurgia"]??row["Id"]??row["id"]; if(id===undefined||id==="")return;
         const prev = RET[id]||{};
         const atual = row["Última atualização"]||row["Ultima atualizacao"]||prev.atualizadoEm||hojeISO();
+        const novoStatus=row["Status"]||"Não iniciado";
+        const novoObs=row["Observação"]||row["Observacao"]||"";
+        const novoMotivo=row["Motivo (se perdido)"]||row["Motivo"]||"";
+        // se o retorno mudou em relação ao que já tínhamos, volta a exigir alimentação no sistema
+        const mudou = (prev.status!==novoStatus)||(prev.obs!==novoObs)||(prev.motivo!==novoMotivo);
         RET[id]={
-          status:row["Status"]||"Não iniciado",
-          previsao:row["Previsão"]||row["Previsao"]||"",
-          obs:row["Observação"]||row["Observacao"]||"",
-          motivo:row["Motivo (se perdido)"]||row["Motivo"]||"",
+          status:novoStatus, previsao:"", obs:novoObs, motivo:novoMotivo,
           atualizadoEm: (String(atual).match(/\d{4}-\d{2}-\d{2}/)||[atual])[0] || hojeISO(),
-          sistemaOk: prev.sistemaOk||"Não",     // preserva o que a Magnum já marcou
-          sistemaEm: prev.sistemaEm||""
+          sistemaOk: mudou ? "Não" : (prev.sistemaOk||"Não"),
+          sistemaEm: mudou ? "" : (prev.sistemaEm||"")
         };
       });
       store.write("fu_retornos",RET); render();
