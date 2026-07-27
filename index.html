@@ -57,6 +57,16 @@
   tbody tr:hover{background:#f7faff}
   tr.novo td:first-child{box-shadow:inset 3px 0 0 var(--verde)}
   tr.novo{background:var(--novo)}
+  tr.venc td:first-child{box-shadow:inset 4px 0 0 #c0392b}
+  tr.venc{background:#fdecea}
+  tr.pend td:first-child{box-shadow:inset 4px 0 0 #e67e22}
+  tr.pend{background:#fff6ec}
+  tr.done{background:#fff}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+  .pill.red{background:#f8cbad;color:#7a1f00}
+  .pill.orange{background:#ffe0b2;color:#7a4a00}
+  .pill.gray{background:#eceff3;color:#556}
+  .pill.green{background:#a9d08e;color:#1e4620}
   td.ref{color:var(--txt)}
   td.money{font-variant-numeric:tabular-nums;text-align:right}
   .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
@@ -84,8 +94,8 @@
     <label>Quem é você?</label>
     <select id="loginUser"></select>
     <div id="pwBox" style="display:none">
-      <label>Senha (acesso interno)</label>
-      <input type="password" id="loginPw" placeholder="senha do time interno">
+      <label id="pwLabel">Sua senha</label>
+      <input type="password" id="loginPw" placeholder="digite sua senha">
     </div>
     <button class="btn" id="loginBtn">Entrar</button>
     <div class="err" id="loginErr"></div>
@@ -100,7 +110,7 @@
     <nav class="tabs" style="border:none;background:none;padding:0">
       <button class="tab active" data-tab="oport">Oportunidades</button>
       <button class="tab" data-tab="retornos">Retornos</button>
-      <button class="tab" data-tab="consolidado" id="tabConsol">Consolidado</button>
+      <button class="tab" data-tab="consolidado" id="tabConsol">Magnum · Banco de dados</button>
     </nav>
     <span class="who">Conectado: <b id="whoName">—</b> <button class="btn sec small" id="logout" style="margin-left:10px">Sair</button></span>
   </header>
@@ -118,6 +128,7 @@
         </div>
       </div>
       <div id="oportView" style="display:none">
+        <div class="note" id="deParaNote" style="display:none"></div>
         <div class="stat-row" id="statsOport"></div>
         <div class="toolbar">
           <input class="search" id="searchOport" placeholder="🔍 Buscar paciente, médico, hospital...">
@@ -149,11 +160,13 @@
 
     <!-- ---- CONSOLIDADO (só interno) ---- -->
     <section class="panel" id="panel-consolidado">
-      <div class="note">Visão consolidada de todos os vendedores. Importe aqui os arquivos que os vendedores devolverem para juntar tudo, ou baixe o consolidado para reimportar no seu sistema.</div>
+      <div class="note">Banco de dados de todos os vendedores. No topo ficam os que <b>faltam alimentar no sistema</b> e os <b>vencidos (+60 dias)</b>; embaixo, os já alimentados. Marque <b>Atualizado no sistema = Sim</b> quando lançar o retorno no seu sistema de gestão.</div>
+      <div class="stat-row" id="statsConsol"></div>
       <div class="toolbar">
         <button class="btn sec small" id="importRet">📥 Importar retorno de vendedor</button>
         <input type="file" id="fileRet" accept=".xlsx,.xls" multiple style="display:none">
-        <button class="btn green small" id="exportConsol">⬇ Baixar consolidado (.xlsx)</button>
+        <div class="grow"></div>
+        <button class="btn green small" id="exportConsol">⬇ Baixar banco de dados (.xlsx)</button>
       </div>
       <div class="tablebox"><table id="tblConsol"></table></div>
     </section>
@@ -177,7 +190,31 @@ const VENDEDORES = {
   "MARCOS FERNANDO ANTUNES SCHMITT":"Marcão",
   "MIGUEL GROISMAN":"Miguel",
 };
-const STATUS = ["Não iniciado","Em negociação","Aguardando agendamento","Aguardando convênio","Cirurgia marcada","Concluída / Faturada","Sem contato","Perdido"];
+// Senha de cada vendedor (troque à vontade). O vendedor entra com o nome dele + esta senha.
+const SENHAS_VEND = {
+  "FERNANDO CESAR VEGA":"fernando@vendas#",
+  "RAFAEL FREITAS DA SILVA":"rafael@vendas$",
+  "KAMILA CASTILHO":"kamila@vendas*",
+  "MARCOS ROGÉRIO VERDURA":"verdura@vendas&",
+  "NADJANE":"nadjane@vendas!",
+  "EVANDRO":"evandro@vendas+",
+  "RODOLPHO FALCIANO FILHO":"rodolpho@vendas=",
+  "MARCOS FERNANDO ANTUNES SCHMITT":"marcao@vendas%",
+  "MIGUEL GROISMAN":"miguel@vendas?",
+};
+// Código curto de cada vendedor (usado no link pessoal ?v=codigo)
+const VEND_CODIGO = {
+  fernando:"FERNANDO CESAR VEGA",
+  rafael:"RAFAEL FREITAS DA SILVA",
+  kamila:"KAMILA CASTILHO",
+  verdura:"MARCOS ROGÉRIO VERDURA",
+  nadjane:"NADJANE",
+  evandro:"EVANDRO",
+  rodolpho:"RODOLPHO FALCIANO FILHO",
+  marcao:"MARCOS FERNANDO ANTUNES SCHMITT",
+  miguel:"MIGUEL GROISMAN",
+};
+const STATUS =["Não iniciado","Em negociação","Aguardando agendamento","Aguardando convênio","Cirurgia marcada","Concluída / Faturada","Sem contato","Perdido"];
 const STATUS_COR = {"Não iniciado":"#fce4d6","Em negociação":"#fff2cc","Aguardando agendamento":"#ddebf7","Aguardando convênio":"#ddebf7","Cirurgia marcada":"#c6e0b4","Concluída / Faturada":"#a9d08e","Sem contato":"#eeeeee","Perdido":"#f8cbad"};
 const MOTIVOS = ["","Preço","Concorrente","Paciente desistiu","Convênio negou","Médico mudou conduta","Sem previsão","Outro"];
 
@@ -203,9 +240,51 @@ function fmtDate(v){
   if(typeof v==="number"){ // serial excel
     const d=new Date(Math.round((v-25569)*86400*1000)); return d.toLocaleDateString("pt-BR");
   }
-  return String(v);
+  const s=String(v); const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
 }
+const DIAS_LIMITE = 60;                       // retorno vence após 60 dias
+const hojeISO = ()=> new Date().toISOString().slice(0,10);
+function diasDesde(iso){
+  if(!iso) return null;
+  const d=new Date(String(iso).length<=10 ? iso+"T00:00:00" : iso);
+  if(isNaN(d)) return null;
+  return Math.floor((Date.now()-d.getTime())/86400000);
+}
+function respondido(r){ return !!(r && r.status && r.status!=="Não iniciado"); }
+function vencido(r){ const dd=diasDesde(r&&r.atualizadoEm); return respondido(r) && dd!==null && dd>DIAS_LIMITE; }
+// prioridade do vendedor: 0=a preencher (topo), 1=vencido>60d (topo, vermelho), 2=respondido em dia (abaixo)
+function prioRet(r){ if(!respondido(r)) return 0; if(vencido(r)) return 1; return 2; }
+// Magnum/banco: já alimentado no sistema e sem retorno mais novo pendente e não vencido
+function alimentado(r){ return r && r.sistemaOk==="Sim" && r.sistemaEm && (!r.atualizadoEm || new Date(r.atualizadoEm) <= new Date(r.sistemaEm)); }
+function precisaAlimentar(r){ return respondido(r) && (!alimentado(r) || vencido(r)); }
+// prioridade Magnum: 0=falta alimentar / venceu 60d (topo), 1=aguardando vendedor, 2=alimentado em dia (abaixo)
+function prioMagnum(r){ if(precisaAlimentar(r)) return 0; if(!respondido(r)) return 1; return 2; }
 function labelVend(nome){ return VENDEDORES[nome] || nome; }
+
+/* ---- ordenação ao clicar nas colunas ---- */
+const sortOport={col:null,dir:1}, sortRet={col:null,dir:1}, sortCons={col:null,dir:1};
+function setaSort(estado,k){ return estado.col===k ? (estado.dir>0?' ▲':' ▼') : ''; }
+function aplicarSort(rows, estado, accessors){
+  if(!estado.col || !accessors[estado.col]) return rows;
+  const acc=accessors[estado.col];
+  return [...rows].sort((a,b)=>{
+    let va=acc(a), vb=acc(b);
+    if(typeof va==="number" || typeof vb==="number"){ return ((+va||0)-(+vb||0))*estado.dir; }
+    va=(va??"").toString().toLowerCase(); vb=(vb??"").toString().toLowerCase();
+    return (va<vb?-1:va>vb?1:0)*estado.dir;
+  });
+}
+function ligarSortHeaders(tblSel, estado, renderFn){
+  document.querySelectorAll(`${tblSel} thead th[data-col]`).forEach(th=>{
+    th.style.cursor="pointer"; th.title="Clique para ordenar";
+    th.onclick=()=>{ const c=th.dataset.col; if(estado.col===c) estado.dir*=-1; else {estado.col=c;estado.dir=1;} renderFn(); };
+  });
+}
+const rr=id=>retornoDe(id);
+const ACC_OPORT={vendedor:o=>labelVend(o.vendedor),id:o=>+o.id||0,paciente:o=>o.paciente,data:o=>o.data?new Date(o.data).getTime():0,medico:o=>o.medico,convenio:o=>o.convenio,hospital:o=>o.hospital,tipo:o=>o.tipo,produtos:o=>o.produtos,qtd:o=>+o.qtd||0,valor:o=>o.valor};
+const ACC_RET={situacao:o=>prioRet(rr(o.id)),id:o=>+o.id||0,paciente:o=>o.paciente,convenio:o=>o.convenio,hospital:o=>o.hospital,valor:o=>o.valor,vendedor:o=>labelVend(o.vendedor),status:o=>rr(o.id).status,motivo:o=>rr(o.id).motivo,atualizado:o=>{const a=rr(o.id).atualizadoEm;return a?new Date(a).getTime():0;},obs:o=>rr(o.id).obs};
+const ACC_CONS={situacao:o=>prioMagnum(rr(o.id)),vendedor:o=>labelVend(o.vendedor),id:o=>+o.id||0,paciente:o=>o.paciente,convenio:o=>o.convenio,valor:o=>o.valor,status:o=>rr(o.id).status,atualizado:o=>{const a=rr(o.id).atualizadoEm;return a?new Date(a).getTime():0;},sistema:o=>rr(o.id).sistemaOk,alimentado:o=>{const a=rr(o.id).sistemaEm;return a?new Date(a).getTime():0;},obs:o=>rr(o.id).obs};
 
 /* =========================================================================
    PARSE + AGREGA (1 linha por Id Cirurgia por vendedor)
@@ -245,15 +324,22 @@ function agregar(rows){
   return opp;
 }
 
+const chaveOpp = o => String(o.vendedor)+"|"+o.id;
 function carregarWorkbook(arrbuf, marcarNovos){
   const wb = XLSX.read(arrbuf,{type:"array",cellDates:true});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws,{defval:null});
   const nova = agregar(rows);
-  // marca oportunidades novas em relação às atuais
-  const idsAntigos = new Set((DATA?.opp||[]).map(o=>String(o.vendedor)+"|"+o.id));
-  nova.forEach(o=> o.novo = marcarNovos ? !idsAntigos.has(String(o.vendedor)+"|"+o.id) : false );
-  DATA = {atualizadoEm:new Date().toISOString(), opp:nova};
+  // DE/PARA com a base anterior
+  const antigos = DATA?.opp||[];
+  const setAntigos = new Set(antigos.map(chaveOpp));
+  const setNovos = new Set(nova.map(chaveOpp));
+  const primeira = !DATA;
+  nova.forEach(o=> o.novo = (marcarNovos && !primeira) ? !setAntigos.has(chaveOpp(o)) : false );
+  const saíram = antigos.filter(o=>!setNovos.has(chaveOpp(o)));   // estavam antes e não vieram na nova base -> excluídos
+  const qNovos = nova.filter(o=>o.novo).length;
+  const diff = { primeira, novos:qNovos, sairam:saíram.length, mantidos: nova.length-qNovos, quando:new Date().toISOString() };
+  DATA = {atualizadoEm:new Date().toISOString(), opp:nova, diff};
   store.write("fu_oportunidades", DATA);
   render();
 }
@@ -263,16 +349,23 @@ function carregarWorkbook(arrbuf, marcarNovos){
    ========================================================================= */
 function initLogin(){
   const sel=$("#loginUser");
-  sel.innerHTML = '<option value="__interno">Time interno (Gabriela) — vê todos</option>' +
-    Object.entries(VENDEDORES).map(([nome,lab])=>`<option value="${nome}">${lab} (vendedor)</option>`).join("");
-  sel.onchange=()=>{ $("#pwBox").style.display = sel.value==="__interno"?"block":"none"; $("#loginErr").textContent=""; };
-  sel.onchange();
+  // link pessoal do vendedor: ?v=codigo  -> mostra só "Magnum" + o nome dele
+  const cod=(new URLSearchParams(location.search).get("v")||"").toLowerCase().trim();
+  const nomeVend = VEND_CODIGO[cod];
+  let opts = '<option value="__interno">Magnum · Banco de dados</option>';
+  if(nomeVend) opts += `<option value="${nomeVend}">${VENDEDORES[nomeVend]}</option>`;
+  sel.innerHTML = opts;
+  const atualizaPwLabel=()=>{ $("#pwBox").style.display="block"; $("#loginErr").textContent="";
+    $("#pwLabel").textContent = sel.value==="__interno" ? "Senha (acesso interno)" : "Sua senha"; };
+  sel.onchange=atualizaPwLabel; atualizaPwLabel();
+  $("#loginPw").onkeydown=e=>{ if(e.key==="Enter") $("#loginBtn").click(); };
   $("#loginBtn").onclick=()=>{
-    const v=sel.value;
+    const v=sel.value, pw=$("#loginPw").value;
     if(v==="__interno"){
-      if($("#loginPw").value!==SENHA_INTERNO){ $("#loginErr").textContent="Senha incorreta."; return; }
-      USER={tipo:"interno",nome:"__interno",label:"Gabriela (interno)"};
+      if(pw!==SENHA_INTERNO){ $("#loginErr").textContent="Senha incorreta."; return; }
+      USER={tipo:"interno",nome:"__interno",label:"Magnum · Banco de dados"};
     }else{
+      if(pw!==SENHAS_VEND[v]){ $("#loginErr").textContent="Senha incorreta."; return; }
       USER={tipo:"vendedor",nome:v,label:labelVend(v)};
     }
     $("#login").style.display="none";
@@ -282,7 +375,14 @@ function initLogin(){
     $("#internoUpload").style.display = USER.tipo==="interno"?"block":"none";
     $("#filtVendOport").style.display = USER.tipo==="interno"?"":"none";
     render();
+    ativarTab(USER.tipo==="vendedor" ? "retornos" : "oport");   // vendedor cai direto nos Retornos
   };
+}
+function ativarTab(name){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+  const t=document.querySelector(`.tab[data-tab="${name}"]`); if(t) t.classList.add("active");
+  const pn=document.getElementById("panel-"+name); if(pn) pn.classList.add("active");
 }
 $("#logout").onclick=()=>{ USER=null; location.reload(); };
 
@@ -327,6 +427,16 @@ function renderOport(){
   const semData = opp.filter(o=>!o.data).length;
   $("#statsOport").innerHTML = stat(opp.length,"Oportunidades")+stat(semData,"Sem data agendada")+stat(fmtMoney(totalVal),"Valor total");
   $("#updatedTag").textContent = "Atualizado: "+fmtDate(new Date(DATA.atualizadoEm));
+  // resumo do de/para da última base anexada (só interno)
+  const dn=$("#deParaNote");
+  if(USER.tipo==="interno" && DATA.diff && !DATA.diff.primeira){
+    dn.style.display="block";
+    dn.innerHTML=`🔄 <b>De/para da última base anexada:</b> ${DATA.diff.novos} novo(s) incluído(s), `+
+      `${DATA.diff.sairam} que saíram (excluídos) e ${DATA.diff.mantidos} mantido(s) com os retornos preservados.`;
+  } else if(USER.tipo==="interno" && DATA.diff && DATA.diff.primeira){
+    dn.style.display="block";
+    dn.innerHTML=`✅ <b>Base carregada:</b> ${DATA.opp.length} oportunidades. A partir da próxima planilha que você anexar, mostro aqui o que entrou de novo e o que saiu.`;
+  } else dn.style.display="none";
   // filtro vendedor (interno)
   if(USER.tipo==="interno"){
     const fv=$("#filtVendOport");
@@ -334,9 +444,10 @@ function renderOport(){
   }
   const busca=($("#searchOport").value||"").toLowerCase();
   const fvend=USER.tipo==="interno"?$("#filtVendOport").value:"";
-  const cols=["Vendedor","Id","Paciente","Data Cirurgia","Médico","Convênio","Hospital","Tipo","Produtos","Qtd","Valor (R$)"];
-  let html="<thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>";
-  const rows=opp.filter(o=>(!fvend||o.vendedor===fvend) && (!busca || (o.paciente+o.medico+o.hospital+o.produtos).toLowerCase().includes(busca)));
+  const cols=[["Vendedor","vendedor"],["Id","id"],["Paciente","paciente"],["Data Cirurgia","data"],["Médico","medico"],["Convênio","convenio"],["Hospital","hospital"],["Tipo","tipo"],["Produtos","produtos"],["Qtd","qtd"],["Valor (R$)","valor"]];
+  let html="<thead><tr>"+cols.map(([c,k])=>`<th data-col="${k}">${c}${setaSort(sortOport,k)}</th>`).join("")+"</tr></thead><tbody>";
+  let rows=opp.filter(o=>(!fvend||o.vendedor===fvend) && (!busca || (o.paciente+o.medico+o.hospital+o.produtos).toLowerCase().includes(busca)));
+  rows=aplicarSort(rows, sortOport, ACC_OPORT);
   rows.forEach(o=>{
     html+=`<tr class="${o.novo?'novo':''}"><td class="ref">${labelVend(o.vendedor)}</td><td class="ref"><b>${o.id??""}</b></td>`+
       `<td class="ref">${o.paciente||""}</td><td class="ref">${fmtDate(o.data)}</td><td class="ref">${o.medico||""}</td>`+
@@ -346,9 +457,10 @@ function renderOport(){
   if(!rows.length) html+=`<tr><td colspan="11" class="empty">Nada encontrado.</td></tr>`;
   html+="</tbody>";
   $("#tblOport").innerHTML=html;
+  ligarSortHeaders('#tblOport', sortOport, renderOport);
 }
 
-function retornoDe(id){ return RET[id] || {status:"Não iniciado",previsao:"",obs:"",motivo:""}; }
+function retornoDe(id){ return RET[id] || {status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""}; }
 
 function renderRetornos(){
   const opp=oppsVisiveis();
@@ -365,46 +477,70 @@ function renderRetornos(){
   const cont={}; STATUS.forEach(s=>cont[s]=0);
   opp.forEach(o=>{ const st=retornoDe(o.id).status||"Não iniciado"; cont[st]=(cont[st]||0)+1; });
   const respond = opp.length - (cont["Não iniciado"]||0);
-  $("#statsRet").innerHTML = stat(opp.length,"Total")+stat(respond,"Respondidas")+stat((cont["Perdido"]||0),"Perdidas")+stat((cont["Cirurgia marcada"]||0)+(cont["Concluída / Faturada"]||0),"Ganhas/marcadas");
   // vendedor filter for interno
   const fvBox=$("#filtVendRet");
   if(USER.tipo==="interno"){ fvBox.style.display="";
     if(!fvBox.dataset.built){ fvBox.innerHTML='<option value="">Todos os vendedores</option>'+Object.entries(VENDEDORES).map(([n,l])=>`<option value="${n}">${l}</option>`).join(""); fvBox.dataset.built=1; fvBox.onchange=renderRetornos; }
   } else fvBox.style.display="none";
 
+  const vencidos = opp.filter(o=>vencido(retornoDe(o.id))).length;
+  $("#statsRet").innerHTML = stat(opp.length,"Total")+stat(respond,"Respondidas")+stat(vencidos,"Vencidos (+60d)")+stat((cont["Perdido"]||0),"Perdidas");
+
   const busca=($("#searchRet").value||"").toLowerCase();
   const fstat=fs.value; const fvend=USER.tipo==="interno"?fvBox.value:"";
-  const head=["Id","Paciente","Convênio","Hospital","Valor"].concat(USER.tipo==="interno"?["Vendedor"]:[]);
-  let html="<thead><tr>"+head.map(c=>`<th>${c}</th>`).join("")+
-    ['Status','Previsão','Observação','Motivo (se perdido)'].map(c=>`<th class="ret">${c}</th>`).join("")+"</tr></thead><tbody>";
-  const rows=opp.filter(o=>{
+  const baseCols=[["Situação","situacao"],["Id","id"],["Paciente","paciente"],["Convênio","convenio"],["Hospital","hospital"],["Valor","valor"]];
+  if(USER.tipo==="interno") baseCols.push(["Vendedor","vendedor"]);
+  const retCols=[["Status","status"],["Motivo (se perdido)","motivo"],["Última atualização","atualizado"],["Observação","obs"]];
+  let html="<thead><tr>"+baseCols.map(([c,k])=>`<th data-col="${k}">${c}${setaSort(sortRet,k)}</th>`).join("")+
+    retCols.map(([c,k])=>`<th class="ret" data-col="${k}">${c}${setaSort(sortRet,k)}</th>`).join("")+"</tr></thead><tbody>";
+  let rows=opp.filter(o=>{
     const r=retornoDe(o.id);
     if(fstat && (r.status||"Não iniciado")!==fstat) return false;
     if(fvend && o.vendedor!==fvend) return false;
     if(busca && !(o.paciente+o.medico+o.hospital+o.produtos).toLowerCase().includes(busca)) return false;
     return true;
   });
+  if(sortRet.col){
+    rows=aplicarSort(rows, sortRet, ACC_RET);
+  } else {
+    // ORDENAÇÃO padrão: a preencher e vencidos no topo; respondidos em dia embaixo (mais antigos primeiro)
+    rows.sort((a,b)=>{
+      const ra=retornoDe(a.id), rb=retornoDe(b.id);
+      const pa=prioRet(ra), pb=prioRet(rb);
+      if(pa!==pb) return pa-pb;
+      const da=diasDesde(ra.atualizadoEm), db=diasDesde(rb.atualizadoEm);
+      return (db===null?-1:db)-(da===null?-1:da);
+    });
+  }
   rows.forEach(o=>{
     const r=retornoDe(o.id);
-    html+=`<tr class="${o.novo?'novo':''}"><td class="ref"><b>${o.id??""}</b></td><td class="ref">${o.paciente||""}</td>`+
+    const p=prioRet(r); const cls = p===0?'pend':(p===1?'venc':'done');
+    const dd=diasDesde(r.atualizadoEm);
+    const pill = !respondido(r) ? '<span class="pill orange">A preencher</span>'
+               : vencido(r) ? `<span class="pill red">Vencido ${dd}d</span>`
+               : '<span class="pill green">Em dia</span>';
+    html+=`<tr class="${cls}"><td>${pill}</td><td class="ref"><b>${o.id??""}</b></td><td class="ref">${o.paciente||""}</td>`+
       `<td class="ref">${o.convenio||""}</td><td class="ref">${o.hospital||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
       (USER.tipo==="interno"?`<td class="ref">${labelVend(o.vendedor)}</td>`:"")+
       `<td><select class="cell-in" data-id="${o.id}" data-f="status" style="background:${STATUS_COR[r.status]||'#fff2cc'}">`+
         STATUS.map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")+`</select></td>`+
-      `<td><input class="cell-in date" type="date" data-id="${o.id}" data-f="previsao" value="${r.previsao||""}"></td>`+
-      `<td><textarea class="cell-in" data-id="${o.id}" data-f="obs" rows="1">${r.obs||""}</textarea></td>`+
-      `<td><select class="cell-in" data-id="${o.id}" data-f="motivo">`+MOTIVOS.map(m=>`<option ${m===r.motivo?"selected":""}>${m}</option>`).join("")+`</select></td></tr>`;
+      `<td><select class="cell-in" data-id="${o.id}" data-f="motivo">`+MOTIVOS.map(m=>`<option ${m===r.motivo?"selected":""}>${m}</option>`).join("")+`</select></td>`+
+      `<td class="ref" data-upd="${o.id}">${r.atualizadoEm?fmtDate(r.atualizadoEm):"—"}</td>`+
+      `<td><textarea class="cell-in" data-id="${o.id}" data-f="obs" rows="1">${r.obs||""}</textarea></td></tr>`;
   });
-  if(!rows.length) html+=`<tr><td colspan="9" class="empty">Nada encontrado.</td></tr>`;
+  if(!rows.length) html+=`<tr><td colspan="11" class="empty">Nada encontrado.</td></tr>`;
   html+="</tbody>";
   $("#tblRet").innerHTML=html;
+  ligarSortHeaders('#tblRet', sortRet, renderRetornos);
   // liga edição
   $("#tblRet").querySelectorAll(".cell-in").forEach(el=>{
     const ev = el.tagName==="TEXTAREA"?"input":"change";
     el.addEventListener(ev,()=>{
       const id=el.dataset.id, f=el.dataset.f;
-      if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:""};
+      if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""};
       RET[id][f]=el.value;
+      RET[id].atualizadoEm=hojeISO();                 // registra a data da última atualização do retorno
+      const cel=$("#tblRet").querySelector(`[data-upd="${id}"]`); if(cel) cel.textContent=fmtDate(RET[id].atualizadoEm);
       store.write("fu_retornos",RET);
       if(f==="status"){ el.style.background=STATUS_COR[el.value]||"#fff2cc"; renderRetornos(); if(USER.tipo==="interno") renderConsolidado(); }
     });
@@ -413,14 +549,54 @@ function renderRetornos(){
 
 function renderConsolidado(){
   if(!DATA){ $("#tblConsol").innerHTML=""; return; }
-  const head=["Vendedor","Id","Paciente","Convênio","Hospital","Valor","Status","Previsão","Observação","Motivo"];
-  let html="<thead><tr>"+head.map((c,i)=>`<th class="${i>=6?'ret':''}">${c}</th>`).join("")+"</tr></thead><tbody>";
-  DATA.opp.forEach(o=>{ const r=retornoDe(o.id);
-    html+=`<tr><td>${labelVend(o.vendedor)}</td><td><b>${o.id??""}</b></td><td>${o.paciente||""}</td><td>${o.convenio||""}</td><td>${o.hospital||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
-      `<td><span class="badge" style="background:${STATUS_COR[r.status]||'#eee'}">${r.status||"Não iniciado"}</span></td><td>${r.previsao?fmtDate(r.previsao):""}</td><td>${r.obs||""}</td><td>${r.motivo||""}</td></tr>`;
+  // stats
+  const todos=DATA.opp.map(o=>retornoDe(o.id));
+  const faltaAlim=DATA.opp.filter(o=>precisaAlimentar(retornoDe(o.id))).length;
+  const jaAlim=DATA.opp.filter(o=>alimentado(retornoDe(o.id))&&!vencido(retornoDe(o.id))).length;
+  const venc=DATA.opp.filter(o=>vencido(retornoDe(o.id))).length;
+  $("#statsConsol").innerHTML = stat(DATA.opp.length,"Leads")+stat(faltaAlim,"Falta alimentar")+stat(venc,"Vencidos (+60d)")+stat(jaAlim,"Alimentados");
+
+  const head=[["Situação","situacao"],["Vendedor","vendedor"],["Id","id"],["Paciente","paciente"],["Convênio","convenio"],["Valor","valor"],["Status","status"],["Última atualização","atualizado"]];
+  let html="<thead><tr>"+head.map(([c,k],i)=>`<th class="${i>=6?'ret':''}" data-col="${k}">${c}${setaSort(sortCons,k)}</th>`).join("")+
+    `<th class="ret" data-col="sistema" style="background:#7a4a00">Atualizado no sistema${setaSort(sortCons,'sistema')}</th><th class="ret" data-col="alimentado" style="background:#7a4a00">Alimentado em${setaSort(sortCons,'alimentado')}</th><th class="ret" data-col="obs">Observação${setaSort(sortCons,'obs')}</th></tr></thead><tbody>`;
+  let linhas=[...DATA.opp];
+  if(sortCons.col){
+    linhas=aplicarSort(linhas, sortCons, ACC_CONS);
+  } else {
+    // ordena: falta alimentar / vencidos no topo; aguardando vendedor no meio; alimentados embaixo
+    linhas.sort((a,b)=>{
+      const ra=retornoDe(a.id), rb=retornoDe(b.id);
+      const pa=prioMagnum(ra), pb=prioMagnum(rb);
+      if(pa!==pb) return pa-pb;
+      return (diasDesde(rb.atualizadoEm)??-1)-(diasDesde(ra.atualizadoEm)??-1);
+    });
+  }
+  linhas.forEach(o=>{ const r=retornoDe(o.id);
+    const p=prioMagnum(r); const cls = p===0?(vencido(r)?'venc':'pend'):(p===2?'done':'');
+    const pill = !respondido(r) ? '<span class="pill gray">Aguardando vendedor</span>'
+               : vencido(r) ? `<span class="pill red">Vencido — re-alimentar</span>`
+               : !alimentado(r) ? '<span class="pill orange">Alimentar no sistema</span>'
+               : '<span class="pill green">Alimentado</span>';
+    html+=`<tr class="${cls}"><td>${pill}</td><td>${labelVend(o.vendedor)}</td><td><b>${o.id??""}</b></td><td>${o.paciente||""}</td><td>${o.convenio||""}</td><td class="money">${fmtMoney(o.valor)}</td>`+
+      `<td><span class="badge" style="background:${STATUS_COR[r.status]||'#eee'}">${r.status||"Não iniciado"}</span></td><td>${r.atualizadoEm?fmtDate(r.atualizadoEm):"—"}</td>`+
+      `<td><select class="cell-sis" data-id="${o.id}" style="background:${r.sistemaOk==='Sim'?'#c6e0b4':'#fff2cc'}"><option ${r.sistemaOk!=='Sim'?'selected':''}>Não</option><option ${r.sistemaOk==='Sim'?'selected':''}>Sim</option></select></td>`+
+      `<td>${r.sistemaEm?fmtDate(r.sistemaEm):"—"}</td>`+
+      `<td>${r.obs||""}</td></tr>`;
   });
   html+="</tbody>";
   $("#tblConsol").innerHTML=html;
+  ligarSortHeaders('#tblConsol', sortCons, renderConsolidado);
+  // liga edição do "Atualizado no sistema"
+  $("#tblConsol").querySelectorAll(".cell-sis").forEach(el=>{
+    el.addEventListener("change",()=>{
+      const id=el.dataset.id;
+      if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""};
+      RET[id].sistemaOk=el.value;
+      RET[id].sistemaEm = el.value==="Sim" ? hojeISO() : "";
+      store.write("fu_retornos",RET);
+      renderConsolidado();
+    });
+  });
 }
 
 function stat(n,l){ return `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`; }
@@ -428,10 +604,14 @@ function stat(n,l){ return `<div class="stat"><div class="n">${n}</div><div clas
 /* =========================================================================
    EXPORT / IMPORT
    ========================================================================= */
-function exportarRetornos(opp, nomeArq){
-  const aoa=[["Id Cirurgia","Paciente","Convênio","Hospital","Valor Total","Vendedor","Status","Previsão","Observação","Motivo (se perdido)"]];
+function exportarRetornos(opp, nomeArq, incluirSistema){
+  const cab=["Id Cirurgia","Paciente","Convênio","Hospital","Valor Total","Vendedor","Status","Motivo (se perdido)","Última atualização","Observação"];
+  if(incluirSistema) cab.push("Atualizado no sistema","Alimentado em");
+  const aoa=[cab];
   opp.forEach(o=>{ const r=retornoDe(o.id);
-    aoa.push([o.id,o.paciente,o.convenio,o.hospital,o.valor,labelVend(o.vendedor),r.status,r.previsao,r.obs,r.motivo]);
+    const linha=[o.id,o.paciente,o.convenio,o.hospital,o.valor,labelVend(o.vendedor),r.status,r.motivo,r.atualizadoEm||"",r.obs];
+    if(incluirSistema) linha.push(r.sistemaOk||"Não", r.sistemaEm||"");
+    aoa.push(linha);
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Retornos");
@@ -439,16 +619,26 @@ function exportarRetornos(opp, nomeArq){
 }
 $("#exportMeus").onclick=()=>{
   const opp=oppsVisiveis();
-  exportarRetornos(opp, `Retornos_${USER.tipo==="vendedor"?USER.label:"todos"}.xlsx`);
+  exportarRetornos(opp, `Retornos_${USER.tipo==="vendedor"?USER.label:"todos"}.xlsx`, false);
 };
-$("#exportConsol").onclick=()=>{ exportarRetornos(DATA.opp,"MASTER_CONSOLIDADO.xlsx"); };
+$("#exportConsol").onclick=()=>{ exportarRetornos(DATA.opp,"MAGNUM_BANCO_DE_DADOS.xlsx", true); };
 $("#importRet").onclick=()=>$("#fileRet").click();
 $("#fileRet").onchange=e=>{
   [...e.target.files].forEach(f=>{ const rd=new FileReader();
     rd.onload=ev=>{ const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
       rows.forEach(row=>{ const id=row["Id Cirurgia"]??row["Id"]??row["id"]; if(id===undefined||id==="")return;
-        RET[id]={status:row["Status"]||"Não iniciado",previsao:row["Previsão"]||row["Previsao"]||"",obs:row["Observação"]||row["Observacao"]||"",motivo:row["Motivo (se perdido)"]||row["Motivo"]||""};
+        const prev = RET[id]||{};
+        const atual = row["Última atualização"]||row["Ultima atualizacao"]||prev.atualizadoEm||hojeISO();
+        RET[id]={
+          status:row["Status"]||"Não iniciado",
+          previsao:row["Previsão"]||row["Previsao"]||"",
+          obs:row["Observação"]||row["Observacao"]||"",
+          motivo:row["Motivo (se perdido)"]||row["Motivo"]||"",
+          atualizadoEm: (String(atual).match(/\d{4}-\d{2}-\d{2}/)||[atual])[0] || hojeISO(),
+          sistemaOk: prev.sistemaOk||"Não",     // preserva o que a Magnum já marcou
+          sistemaEm: prev.sistemaEm||""
+        };
       });
       store.write("fu_retornos",RET); render();
     }; rd.readAsArrayBuffer(f);
