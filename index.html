@@ -122,7 +122,7 @@
 <div id="app">
   <header class="top">
     <span class="brand">🩺 Magnum · Follow-up</span>
-    <span class="who"><b id="whoName">—</b> <button class="btn sec small" id="logout">Sair</button></span>
+    <span class="who"><b id="whoName">—</b> <button class="btn sec small" id="btnRefresh" title="Atualizar dados">↻</button> <button class="btn sec small" id="logout">Sair</button></span>
   </header>
   <nav class="tabs">
     <button class="tab active" data-tab="oport" id="tabOport">Oportunidades</button>
@@ -139,7 +139,7 @@
           <div style="font-size:15px;margin-bottom:8px">📎 Arraste a planilha aqui ou</div>
           <button class="btn sec small" id="pick">Escolher arquivo (.xlsx)</button>
           <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
-          <div class="hint" style="margin-top:12px">Ou <button class="btn sec small" id="demo">carregar dados de exemplo</button> para testar.</div>
+          <div class="hint" style="margin-top:12px">Os dados sobem para a nuvem e aparecem para cada vendedor no celular. <button class="btn sec small" id="demo" style="display:none">.</button></div>
         </div>
       </div>
       <div id="oportView" style="display:none">
@@ -236,13 +236,40 @@ const MOTIVOS = ["","Preço","Concorrente","Paciente desistiu","Convênio negou"
 /* =========================================================================
    ESTADO (persiste no navegador quando possível)
    ========================================================================= */
-const store = {
-  read(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;} },
-  write(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
-};
-let DATA = store.read("fu_oportunidades", null);   // {atualizadoEm, opp:[...]}
-let RET  = store.read("fu_retornos", {});          // { id: {status,previsao,obs,motivo} }
-let USER = null;                                    // {tipo:'interno'|'vendedor', nome, label}
+const store = { read(k,def){return def;}, write(){} }; // não usamos mais armazenamento local: os dados vivem na nuvem (Planilha Google)
+
+// >>> URL do banco de dados online (App da Web do Apps Script) <<<
+const API_URL = "https://script.google.com/macros/s/AKfycbwFUV6i5VajDPZp0zMstRsAe9fSf2LHGvnzK4hbLU7I6YhQYey69ponaXkKOMaOv45B9g/exec";
+
+let DATA=null, RET={}, USER=null;
+
+async function apiGet(params){
+  const qs=Object.entries(params).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v==null?'':v)).join('&');
+  const r=await fetch(API_URL+'?'+qs);
+  return await r.json();
+}
+async function apiPost(body){
+  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify(body)});
+  return await r.json();
+}
+// monta DATA (base) e RET (retornos) a partir das linhas vindas da nuvem
+function carregarRows(resp){
+  const rows=(resp&&resp.opp)||[];
+  DATA={atualizadoEm:new Date().toISOString(), opp: rows.map(r=>({
+    id:r.id, vendedor:r.vendedor, paciente:r.paciente, medico:r.medico, tipo:r.tipo,
+    convenio:r.convenio, hospital:r.hospital, produtos:r.produtos, qtd:r.qtd, data:r.data,
+    valor:Number(r.valor)||0, novo:false
+  }))};
+  RET={};
+  rows.forEach(r=>{ RET[r.id]={status:r.status||"Não iniciado", motivo:r.motivo||"", obs:r.obs||"", previsao:"",
+    atualizadoEm:r.atualizadoEm||"", sistemaOk:r.sistemaOk||"Não", sistemaEm:r.sistemaEm||""}; });
+}
+async function recarregar(){                 // re-busca do banco (atualizar)
+  if(!USER) return;
+  const params = USER.tipo==="interno" ? {action:"dados",tipo:"interno",senha:USER.senha}
+                                        : {action:"dados",vendedor:USER.nome,senha:USER.senha};
+  try{ const resp=await apiGet(params); if(resp&&resp.ok){ carregarRows(resp); render(); } }catch(e){}
+}
 
 /* =========================================================================
    UTIL
@@ -339,23 +366,20 @@ function agregar(rows){
   return opp;
 }
 
-const chaveOpp = o => String(o.vendedor)+"|"+o.id;
-function carregarWorkbook(arrbuf, marcarNovos){
+async function carregarWorkbook(arrbuf){
   const wb = XLSX.read(arrbuf,{type:"array",cellDates:true});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws,{defval:null});
   const nova = agregar(rows);
-  // DE/PARA com a base anterior
-  const antigos = DATA?.opp||[];
-  const setAntigos = new Set(antigos.map(chaveOpp));
-  const setNovos = new Set(nova.map(chaveOpp));
-  const primeira = !DATA;
-  nova.forEach(o=> o.novo = (marcarNovos && !primeira) ? !setAntigos.has(chaveOpp(o)) : false );
-  const saíram = antigos.filter(o=>!setNovos.has(chaveOpp(o)));   // estavam antes e não vieram na nova base -> excluídos
-  const qNovos = nova.filter(o=>o.novo).length;
-  const diff = { primeira, novos:qNovos, sairam:saíram.length, mantidos: nova.length-qNovos, quando:new Date().toISOString() };
-  DATA = {atualizadoEm:new Date().toISOString(), opp:nova, diff};
-  store.write("fu_oportunidades", DATA);
+  nova.forEach(o=>{ if(o.data instanceof Date) o.data=o.data.toISOString().slice(0,10); }); // data como texto
+  const dn=$("#deParaNote"); if(dn){ dn.style.display="block"; dn.innerHTML="⏳ Enviando a base para a nuvem e sincronizando... (alguns segundos)"; }
+  $("#oportView").style.display="none";
+  let resp=null;
+  try{ resp = await apiPost({action:"uploadBase", senha:USER.senha, opp:nova}); }catch(e){ resp=null; }
+  let dados=null;
+  try{ dados = await apiGet({action:"dados", tipo:"interno", senha:USER.senha}); }catch(e){}
+  if(dados&&dados.ok) carregarRows(dados);
+  if(resp&&resp.ok && DATA) DATA.diff={primeira:false, novos:resp.novos, sairam:resp.sairam, mantidos:resp.mantidos};
   render();
 }
 
@@ -376,15 +400,21 @@ function initLogin(){
     $("#pwLabel").textContent = sel.value==="__interno" ? "Senha (acesso interno)" : "Sua senha"; };
   sel.onchange=atualizaPwLabel; atualizaPwLabel();
   $("#loginPw").onkeydown=e=>{ if(e.key==="Enter") $("#loginBtn").click(); };
-  $("#loginBtn").onclick=()=>{
+  $("#loginBtn").onclick=async ()=>{
     const v=sel.value, pw=$("#loginPw").value;
-    if(v==="__interno"){
-      if(pw!==SENHA_INTERNO){ $("#loginErr").textContent="Senha incorreta."; return; }
-      USER={tipo:"interno",nome:"__interno",label:"Magnum · Banco de dados"};
-    }else{
-      if(pw!==SENHAS_VEND[v]){ $("#loginErr").textContent="Senha incorreta."; return; }
-      USER={tipo:"vendedor",nome:v,label:labelVend(v)};
-    }
+    const btn=$("#loginBtn"); btn.disabled=true; const txt=btn.textContent; btn.textContent="Entrando...";
+    $("#loginErr").textContent="";
+    const params = v==="__interno" ? {action:"dados",tipo:"interno",senha:pw}
+                                    : {action:"dados",vendedor:v,senha:pw};
+    let resp=null;
+    try{ resp=await apiGet(params); }
+    catch(e){ $("#loginErr").textContent="Sem conexão com o banco. Verifique a internet e tente de novo."; btn.disabled=false; btn.textContent=txt; return; }
+    if(!resp || !resp.ok){ $("#loginErr").textContent="Senha incorreta."; btn.disabled=false; btn.textContent=txt; return; }
+    USER = v==="__interno"
+      ? {tipo:"interno",nome:"__interno",label:"Magnum · Banco de dados",senha:pw}
+      : {tipo:"vendedor",nome:v,label:labelVend(v),senha:pw};
+    carregarRows(resp);
+    btn.disabled=false; btn.textContent=txt;
     $("#login").style.display="none";
     $("#app").style.display="block";
     $("#whoName").textContent=USER.label;
@@ -553,16 +583,16 @@ function renderRetornos(){
   ligarSortHeaders('#tblRet', sortRet, renderRetornos);
   // liga edição
   $("#tblRet").querySelectorAll(".cell-in").forEach(el=>{
-    const ev = el.tagName==="TEXTAREA"?"input":"change";
-    el.addEventListener(ev,()=>{
+    el.addEventListener("change", async ()=>{
       const id=el.dataset.id, f=el.dataset.f;
       if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""};
       RET[id][f]=el.value;
-      RET[id].atualizadoEm=hojeISO();                 // registra a data da última atualização do retorno
-      // qualquer atualização do vendedor volta a exigir alimentação no sistema de gestão
-      RET[id].sistemaOk="Não"; RET[id].sistemaEm="";
+      RET[id].atualizadoEm=hojeISO();                 // data da última atualização
+      RET[id].sistemaOk="Não"; RET[id].sistemaEm="";  // qualquer atualização volta a exigir alimentação no sistema
       const cel=$("#tblRet").querySelector(`[data-upd="${id}"]`); if(cel) cel.textContent=fmtDate(RET[id].atualizadoEm);
-      store.write("fu_retornos",RET);
+      // grava na nuvem
+      try{ await apiGet({action:"salvar", vendedor:USER.nome, senha:USER.senha, id,
+        status:RET[id].status, motivo:RET[id].motivo, obs:RET[id].obs}); }catch(e){}
       if(f==="status"){ el.style.background=STATUS_COR[el.value]||"#fff2cc"; renderRetornos(); }
       if(el.tagName!=="TEXTAREA" && USER.tipo==="interno") renderConsolidado();
     });
@@ -610,12 +640,12 @@ function renderConsolidado(){
   ligarSortHeaders('#tblConsol', sortCons, renderConsolidado);
   // liga edição do "Atualizado no sistema"
   $("#tblConsol").querySelectorAll(".cell-sis").forEach(el=>{
-    el.addEventListener("change",()=>{
+    el.addEventListener("change", async ()=>{
       const id=el.dataset.id;
       if(!RET[id]) RET[id]={status:"Não iniciado",previsao:"",obs:"",motivo:"",atualizadoEm:"",sistemaOk:"Não",sistemaEm:""};
       RET[id].sistemaOk=el.value;
       RET[id].sistemaEm = el.value==="Sim" ? hojeISO() : "";
-      store.write("fu_retornos",RET);
+      try{ await apiGet({action:"sistema", senha:USER.senha, id, valor:el.value}); }catch(e){}
       renderConsolidado();
     });
   });
@@ -673,12 +703,13 @@ $("#fileRet").onchange=e=>{
 /* uploads da aba Oportunidades */
 $("#pick").onclick=()=>$("#file").click();
 $("#reupload").onclick=()=>{ $("#oportView").style.display="none"; $("#internoUpload").style.display="block"; };
-$("#file").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=ev=>carregarWorkbook(ev.target.result,true); rd.readAsArrayBuffer(f); e.target.value=""; };
+$("#file").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=ev=>carregarWorkbook(ev.target.result); rd.readAsArrayBuffer(f); e.target.value=""; };
 const drop=$("#drop");
 ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
-drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f){const rd=new FileReader();rd.onload=ev=>carregarWorkbook(ev.target.result,true);rd.readAsArrayBuffer(f);} });
-$("#demo").onclick=()=>{ DATA={atualizadoEm:new Date().toISOString(),opp:DEMO()}; store.write("fu_oportunidades",DATA); render(); };
+drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f){const rd=new FileReader();rd.onload=ev=>carregarWorkbook(ev.target.result);rd.readAsArrayBuffer(f);} });
+const _demo=$("#demo"); if(_demo){ _demo.style.display="none"; }
+const _refresh=$("#btnRefresh"); if(_refresh){ _refresh.onclick=()=>recarregar(); }
 $("#searchOport").oninput=renderOport;
 $("#searchRet").oninput=renderRetornos;
 
