@@ -31,12 +31,12 @@
   .err{color:#c0392b;font-size:12px;margin-top:8px;min-height:14px}
   /* ---------- APP ---------- */
   #app{display:none}
-  header.top{background:var(--azul);color:#fff;padding:0 20px;display:flex;align-items:center;gap:18px;height:56px}
-  header .brand{font-weight:700;font-size:16px;letter-spacing:.3px}
-  header .who{margin-left:auto;font-size:13px;opacity:.9}
+  header.top{background:var(--azul);color:#fff;padding:0 14px;display:flex;align-items:center;gap:12px;height:52px}
+  header .brand{font-weight:700;font-size:15px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .who{margin-left:auto;font-size:12px;opacity:.95;display:flex;align-items:center;gap:8px;white-space:nowrap}
   header .who b{opacity:1}
-  .tabs{background:#fff;border-bottom:1px solid var(--linha);padding:0 16px;display:flex;gap:4px}
-  .tab{padding:14px 18px;border:none;background:none;font-size:14px;font-weight:600;color:var(--mut);border-bottom:3px solid transparent}
+  .tabs{background:#fff;border-bottom:1px solid var(--linha);padding:0 8px;display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab{padding:13px 14px;border:none;background:none;font-size:13.5px;font-weight:600;color:var(--mut);border-bottom:3px solid transparent;white-space:nowrap;flex:0 0 auto}
   .tab.active{color:var(--azul);border-bottom-color:var(--azul)}
   .wrap{padding:20px;max-width:1400px;margin:0 auto}
   .panel{display:none}
@@ -82,6 +82,21 @@
   .note{background:#fff8e1;border:1px solid #ffe08a;color:#7a5c00;padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:14px}
   .right{margin-left:auto}
   a.link{color:var(--azul);font-weight:600;text-decoration:none}
+  /* ---------- CELULAR ---------- */
+  @media (max-width:560px){
+    .wrap{padding:12px 10px}
+    header.top{gap:8px}
+    header .brand{font-size:14px}
+    .stat{flex:1 1 calc(50% - 8px);min-width:0}
+    .search,.filtsel{max-width:none;width:100%}
+    .toolbar{gap:8px}
+    .toolbar .grow{display:none}
+    .toolbar .btn.small{width:100%}
+    table{font-size:12px}
+    thead th{padding:8px 8px}
+    tbody td{padding:6px 8px}
+    .note{font-size:12px}
+  }
 </style>
 </head>
 <body>
@@ -107,13 +122,13 @@
 <div id="app">
   <header class="top">
     <span class="brand">🩺 Magnum · Follow-up</span>
-    <nav class="tabs" style="border:none;background:none;padding:0">
-      <button class="tab active" data-tab="oport">Oportunidades</button>
-      <button class="tab" data-tab="retornos">Retornos</button>
-      <button class="tab" data-tab="consolidado" id="tabConsol">Magnum · Banco de dados</button>
-    </nav>
-    <span class="who">Conectado: <b id="whoName">—</b> <button class="btn sec small" id="logout" style="margin-left:10px">Sair</button></span>
+    <span class="who"><b id="whoName">—</b> <button class="btn sec small" id="logout">Sair</button></span>
   </header>
+  <nav class="tabs">
+    <button class="tab active" data-tab="oport">Oportunidades</button>
+    <button class="tab" data-tab="retornos">Retornos</button>
+    <button class="tab" data-tab="consolidado" id="tabConsol">Magnum · Banco de dados</button>
+  </nav>
 
   <div class="wrap">
     <!-- ---- OPORTUNIDADES ---- -->
@@ -352,9 +367,11 @@ function initLogin(){
   // link pessoal do vendedor: ?v=codigo  -> mostra só "Magnum" + o nome dele
   const cod=(new URLSearchParams(location.search).get("v")||"").toLowerCase().trim();
   const nomeVend = VEND_CODIGO[cod];
-  let opts = '<option value="__interno">Magnum · Banco de dados</option>';
-  if(nomeVend) opts += `<option value="${nomeVend}">${VENDEDORES[nomeVend]}</option>`;
-  sel.innerHTML = opts;
+  // Link pessoal do vendedor (?v=codigo): mostra SÓ o nome dele — "Magnum" nem aparece.
+  // Acesso da Magnum (sem ?v): mostra só "Magnum · Banco de dados" (e ela vê todos lá dentro).
+  sel.innerHTML = nomeVend
+    ? `<option value="${nomeVend}">${VENDEDORES[nomeVend]}</option>`
+    : '<option value="__interno">Magnum · Banco de dados</option>';
   const atualizaPwLabel=()=>{ $("#pwBox").style.display="block"; $("#loginErr").textContent="";
     $("#pwLabel").textContent = sel.value==="__interno" ? "Senha (acesso interno)" : "Sua senha"; };
   sel.onchange=atualizaPwLabel; atualizaPwLabel();
