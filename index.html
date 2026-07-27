@@ -167,7 +167,7 @@
           <select class="filtsel" id="filtStatusRet"></select>
           <select class="filtsel" id="filtVendRet" style="display:none"></select>
           <div class="grow"></div>
-          <button class="btn green small" id="exportMeus">⬇ Exportar meus retornos</button>
+          <button class="btn green small" id="exportMeus" style="display:none">⬇ Exportar</button>
         </div>
         <div class="tablebox"><table id="tblRet"></table></div>
       </div>
@@ -178,10 +178,10 @@
       <div class="note">Banco de dados de todos os vendedores. No topo ficam os que <b>faltam alimentar no sistema</b> e os <b>vencidos (+60 dias)</b>; embaixo, os já alimentados. Marque <b>Atualizado no sistema = Sim</b> quando lançar o retorno no seu sistema de gestão.</div>
       <div class="stat-row" id="statsConsol"></div>
       <div class="toolbar">
-        <button class="btn sec small" id="importRet">📥 Importar retorno de vendedor</button>
+        <button class="btn sec small" id="importRet" style="display:none">📥 Importar</button>
         <input type="file" id="fileRet" accept=".xlsx,.xls" multiple style="display:none">
         <div class="grow"></div>
-        <button class="btn green small" id="exportConsol">⬇ Baixar banco de dados (.xlsx)</button>
+        <button class="btn green small" id="exportConsol">⬇ Baixar cópia (.xlsx)</button>
       </div>
       <div class="tablebox"><table id="tblConsol"></table></div>
     </section>
@@ -517,7 +517,7 @@ function renderRetornos(){
   if(!opp.length) return;
   // nota + filtro status
   $("#retNote").innerHTML = USER.tipo==="vendedor"
-    ? `Olá <b>${USER.label}</b> — aqui estão <b>suas</b> oportunidades. Preencha Status, Previsão, Observação e Motivo (se perdido). O que você já respondeu fica salvo. Ao terminar, clique em <b>Exportar meus retornos</b> e me envie o arquivo.`
+    ? `Olá <b>${USER.label}</b> — aqui estão <b>suas</b> oportunidades. Preencha Status, Observação e Motivo (se perdido). <b>Tudo é salvo automaticamente</b> — não precisa enviar nada.`
     : `Você está vendo os retornos de <b>todos</b>. Pode editar direto aqui também.`;
   const fs=$("#filtStatusRet");
   if(!fs.dataset.built){ fs.innerHTML='<option value="">Todos os status</option>'+STATUS.map(s=>`<option>${s}</option>`).join(""); fs.dataset.built=1; fs.onchange=renderRetornos; }
